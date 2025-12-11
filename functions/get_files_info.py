@@ -11,10 +11,16 @@ def get_files_info(working_directory, directory="."):
         return f'Error: "{full_path}" is not a directory'
     
     try:
+        entries = []
         for file in os.listdir(full_path):
             file_path = os.path.join(full_path, file)
-            print(f"{file}: file_size={os.path.getsize(file_path)} bytes, is_dir={os.path.isdir(file_path)}")
+            size = os.path.getsize(file_path)
+            is_dir = os.path.isdir(file_path)
+            entries.append(f"  - {file}: file_size={size} bytes, is_dir={is_dir}")    
     
+        header = "Result for current directory:" if directory in [".", "", None] else f'Result for directory "{directory}":'
+        return "\n".join([header] + entries)
+
     except Exception as e:
         return f"Error: {e}"
     

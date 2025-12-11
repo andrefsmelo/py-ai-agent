@@ -30,38 +30,50 @@ def main():
                                schema_get_file_content,
                                schema_run_python_file,
                                schema_write_file])
-
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=messages,
-        config=types.GenerateContentConfig(
-            tools=[available_functions], system_instruction=system_prompt
-        ),
-    )
-
-    if response.usage_metadata is None:
-        raise RuntimeError("API request has failed.")
     
-    if args.verbose:
-        print(f"User prompt: {args.content}")
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
-    
-    function_call  = response.function_calls
-    if function_call == None:
-        print(f"{response.text}")
-    else:
-        result_list = []
-        for function_call_part in function_call:
-            print(f"Calling function: {function_call_part.name}({function_call_part.args})")
-            function_call_result = call_function(function_call_part)
+    for _ in range(20):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=messages,
+                config=types.GenerateContentConfig(
+                    tools=[available_functions], system_instruction=system_prompt
+                ),
+            )
 
-            if not function_call_result.parts[0].function_response.response:
-                raise RuntimeError(f"Failed to obtain function results from {function_call_part.name}")
-    
-            result_list.append(function_call_result.parts[0])
+            if response.usage_metadata is None:
+                raise RuntimeError("API request has failed.")
+
+            if response.candidates:
+                for candidate in response.candidates:
+                    messages.append(candidate.content)
+            
+            function_call  = response.function_calls
+            if function_call == None and len(response.text) > 0:
+                print(f"{response.text}")
+                break
+
             if args.verbose:
-                print(f"-> {function_call_result.parts[0].function_response.response}")
+                print(f"User prompt: {args.content}")
+                print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+                print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+
+            result_list = []
+            for function_call_part in function_call:
+                print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+                function_call_result = call_function(function_call_part)
+
+                if not function_call_result.parts[0].function_response.response:
+                    raise RuntimeError(f"Failed to obtain function results from {function_call_part.name}")
+        
+                result_list.append(function_call_result.parts[0])
+                if args.verbose:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
+
+            messages.append(types.Content(role="user", parts=[types.Part(text=str(result_list))]))
+
+        except Exception as e:
+            print(f"Error: {e}") 
 
 if __name__ == "__main__":
     main()
